@@ -71,7 +71,7 @@ void Camera::updateInput(int viewMode)
         if (m_pWindow->isKeyPressed(GLFW_KEY_C))     moveDelta.y -= 1.0f;
         if (glm::length(moveDelta) > 0.0f)
             m_position += glm::normalize(moveDelta) * moveSpeed;
-        // No mouse look in top-down
+        // No mouse lock in top-down
         m_prevCursorPos = m_pWindow->getCursorPos();
         return;
     }

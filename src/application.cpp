@@ -99,7 +99,7 @@ public:
             ImGui::End();
 
 
-            // --- Camera input like in the template
+            // camera input like in the template
             ImGuiIO& io = ImGui::GetIO();
             if (!io.WantCaptureMouse) {
                 m_camera.updateInput(m_viewMode);
