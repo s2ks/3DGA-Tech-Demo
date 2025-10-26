@@ -1,6 +1,7 @@
 //#include "Image.h"
 #include "mesh.h"
 #include "texture.h"
+#include "ui/camera.h"
 // Always include window first (because it includes glfw, which includes GL which needs to be included AFTER glew).
 // Can't wait for modules to fix this stuff...
 #include <framework/disable_all_warnings.h>
@@ -21,11 +22,13 @@ DISABLE_WARNINGS_POP()
 #include <iostream>
 #include <vector>
 
+
 class Application {
 public:
     Application()
         : m_window("Final Project", glm::ivec2(1024, 1024), OpenGLVersion::GL41)
         , m_texture(RESOURCE_ROOT "resources/checkerboard.png")
+        , m_camera(&m_window, glm::vec3(3, 3, 3), glm::vec3(-3, -3, -3)) // maybe use "utils/constants" for this later
     {
         m_window.registerKeyCallback([this](int key, int scancode, int action, int mods) {
             if (action == GLFW_PRESS)
@@ -67,6 +70,12 @@ public:
     void update()
     {
         int dummyInteger = 0; // Initialized to 0
+        
+        // 1time GL state setup
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glEnable(GL_DEPTH_TEST);
+        glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
+
         while (!m_window.shouldClose()) {
             // This is your game loop
             // Put your real-time logic and rendering in here
@@ -78,6 +87,26 @@ public:
             ImGui::Text("Value is: %i", dummyInteger); // Use C printf formatting rules (%i is a signed integer)
             ImGui::Checkbox("Use material if no texture", &m_useMaterial);
             ImGui::End();
+
+            // --- Camera input like in the template
+            ImGuiIO& io = ImGui::GetIO();
+            if (!io.WantCaptureMouse) {
+                m_camera.updateInput();
+            }
+            else {
+                // potential mouse movement:
+                // m_camera.setUserInteraction(false); m_camera.setUserInteraction(true);
+            }
+
+            // viewport & aspect
+            const glm::ivec2 win = m_window.getWindowSize();
+            glViewport(0, 0, win.x, win.y);
+            const float aspect = (win.y > 0) ? float(win.x) / float(win.y) : 1.0f;
+
+            // build matrices (proj * view)
+            m_projectionMatrix = glm::perspective(glm::radians(80.0f), aspect, 0.1f, 30.0f);
+            m_viewMatrix = m_camera.viewMatrix();
+            const glm::mat4 viewProjection = m_projectionMatrix * m_viewMatrix;
 
             // Clear the screen
             glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
@@ -154,6 +183,7 @@ public:
 
 private:
     Window m_window;
+    Camera m_camera;
 
     // Shader for default rendering and for depth rendering
     Shader m_defaultShader;
@@ -164,8 +194,8 @@ private:
     bool m_useMaterial { true };
 
     // Projection and view matrices for you to fill in and use
-    glm::mat4 m_projectionMatrix = glm::perspective(glm::radians(80.0f), 1.0f, 0.1f, 30.0f);
-    glm::mat4 m_viewMatrix = glm::lookAt(glm::vec3(-1, 1, -1), glm::vec3(0), glm::vec3(0, 1, 0));
+    glm::mat4 m_projectionMatrix = glm::mat4(1.0f);
+    glm::mat4 m_viewMatrix = glm::mat4(1.0f);
     glm::mat4 m_modelMatrix { 1.0f };
 };
 
