@@ -128,3 +128,23 @@ void GPUMesh::freeGpuMemory()
     if (m_uboMaterial != INVALID)
         glDeleteBuffers(1, &m_uboMaterial);
 }
+
+GPUMesh GPUMesh::createFullscreenQuad() {
+	// Define a fullscreen quad
+	Mesh quadMesh;
+	quadMesh.vertices = {
+		// positions        // normals       // texCoords
+		{{-1.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}},
+		{{ 1.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}},
+		{{ 1.0f,  1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+		{{-1.0f,  1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
+	};
+	quadMesh.triangles = {
+		{0, 1, 2},
+		{2, 3, 0}
+	};
+	quadMesh.material = Material(); // Default material
+
+	return GPUMesh(quadMesh);
+}
+

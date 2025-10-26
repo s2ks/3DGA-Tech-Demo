@@ -7,4 +7,5 @@ DISABLE_WARNINGS_POP()
 
 
 struct Config {
+	bool pathTracerEnabled = false;
 };

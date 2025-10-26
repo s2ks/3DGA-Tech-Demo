@@ -37,6 +37,8 @@ public:
     // Multiple meshes may be generated if there are multiple sub-meshes in the file
     static std::vector<GPUMesh> loadMeshGPU(std::filesystem::path filePath, bool normalize = false);
 
+	static GPUMesh createFullscreenQuad();
+
     // Cannot copy a GPU mesh because it would require reference counting of GPU resources.
     GPUMesh& operator=(const GPUMesh&) = delete;
     GPUMesh& operator=(GPUMesh&&);
@@ -58,5 +60,6 @@ private:
     GLuint m_ibo { INVALID };
     GLuint m_vbo { INVALID };
     GLuint m_vao { INVALID };
+	GLuint m_ssbo { INVALID };
     GLuint m_uboMaterial { INVALID };
 };

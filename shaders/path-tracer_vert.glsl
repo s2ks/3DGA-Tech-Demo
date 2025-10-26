@@ -13,6 +13,7 @@ layout(location = 2) in vec2 texCoord;
 out vec3 fragPosition;
 out vec3 fragNormal;
 out vec2 fragTexCoord;
+out vec2 uv;
 
 void main()
 {
@@ -21,4 +22,6 @@ void main()
     fragPosition    = (modelMatrix * vec4(position, 1)).xyz;
     fragNormal      = normalModelMatrix * normal;
     fragTexCoord    = texCoord;
+
+	uv = texCoord;
 }

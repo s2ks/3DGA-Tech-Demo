@@ -1,17 +1,37 @@
-#version 410
+#version 430
 
 #define NO_INTERSECTION intersection(0, material(0, 0, 0, vec3(0), vec3(0)), vec3(0), vec3(0), false)
 #define MAX_BOUNCE 128
+#define EPSILON 0.01
+#define PI 3.14159265358979323846
+#define TWOPI 6.28318530717958647692
 
-#define MAX_TRIS_PER_MESH 4098
+layout(std140) uniform Material // Must match the GPUMaterial defined in src/mesh.h
+{
+    vec3 kd;
+	vec3 ks;
+	float shininess;
+	float transparency;
+};
 
 uniform sampler2D colorMap;
 uniform bool hasTexCoords;
 uniform bool useMaterial;
 
+uniform int accum_sample;
+
+uniform samplerCube skybox;
+
+uniform int num_triangles;
+uniform int num_bvh_nodes;
+
+uniform sampler2D accum;
+
 in vec3 fragPosition;
 in vec3 fragNormal;
 in vec2 fragTexCoord;
+
+in vec2 uv;
 
 struct material {
 	float specular;
@@ -32,38 +52,6 @@ struct camera {
 	bool is_moving;
 };
 
-struct sphere {
-	material mat;
-	vec3 pos;
-	float r;
-};
-
-struct plane {
-	material mat;
-	vec3 normal;
-	float distance;
-};
-
-struct triangle {
-	material mat;
-	vec3 v0;
-	vec3 v1;
-	vec3 v2;
-	vec3 normal;
-};
-
-struct mesh {
-	int first_tri; // index of first triangle in the TrianglesBuffer
-	int tri_count; // number of triangles in the mesh
-};
-
-struct light {
-	vec3 point;
-	vec3 color;
-	float intensity;
-	float r;
-};
-
 struct intersection {
 	float distance;
 	material mat;
@@ -80,6 +68,14 @@ struct scene {
 	camera cam;
 };
 
+struct triangle {
+	vec3 v0;
+	vec3 v1;
+	vec3 v2;
+	vec3 normal; // precomputed normal (optional)
+	material mat;
+};
+
 struct bvh_node {
 	vec3 min;
 	vec3 max;
@@ -91,13 +87,8 @@ struct bvh_node {
 
 uint seed;
 
-uniform samplerCube skybox;
-
-uniform int num_triangles;
-uniform int num_bvh_nodes;
-
 layout (std430) buffer TrianglesBuffer {
-	triangle triangles[];
+	triangle tris[];
 };
 
 layout (std430) buffer BVHBuffer {
@@ -110,7 +101,7 @@ layout (std140) uniform ubscene {
 
 layout(location = 0) out vec4 fragColor;
 
-float get_random_numbers(inout uint seed) {
+float rand(inout uint seed) {
     seed = 1664525u * seed + 1013904223u;
     seed += 1664525u * seed;
     seed ^= (seed >> 16u);
@@ -221,13 +212,13 @@ intersection intersect(vec3 E, vec3 D, float mint, float maxt) {
 			continue;
 		}
 
-		if (node.count > 0) {
+		if (current_node.count > 0) {
 			// Leaf node: test triangles
 			int first = current_node.first;
 			int last = first + current_node.count;
 
 			for (int i = first; i < last; i++) {
-				intersection t = intersect(triangles[i], E, D, mint, maxt);
+				intersection t = intersect(tris[i], E, D, mint, maxt);
 				if (t.hits) {
 					if (!s.hits || (t.distance < s.distance && t.distance > EPSILON)) {
 						s = t;
@@ -438,11 +429,5 @@ void main()
 		accumCol = vec3(0);
 	}
 
-	fragColor = render() + accumCol;
-
-    //vec3 normal = normalize(fragNormal);
-
-    //if (hasTexCoords)       { fragColor = vec4(texture(colorMap, fragTexCoord).rgb, 1);}
-    //else if (useMaterial)   { fragColor = vec4(kd, 1);}
-    //else                    { fragColor = vec4(normal, 1); } // Output color value, change from (1, 0, 0) to something else
+	fragColor = vec4(render() + accumCol, 1);
 }

@@ -23,6 +23,8 @@ DISABLE_WARNINGS_POP()
 #include <vector>
 #include "ui/menu.h"
 
+#include "utils/config.h"
+
 
 class Application {
 public:
@@ -55,7 +57,7 @@ public:
 
             ShaderBuilder shadowBuilder;
             shadowBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/shadow_vert.glsl");
-            shadowBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "Shaders/shadow_frag.glsl");
+            shadowBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/shadow_frag.glsl");
             m_shadowShader = shadowBuilder.build();
 
             // Any new shaders can be added below in similar fashion.
@@ -66,10 +68,10 @@ public:
 			
 			/* TODO: we could turn this into a compute shader. Is apparently better
 			 * parallellizable */
-			ShaderBuilder pathTraceBuilder;
-			pathTraceBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/path-trace_vert.glsl");
-			pathTraceBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/path-trace_frag.glsl");
-			m_pathTraceShader = pathTraceBuilder.build();
+			ShaderBuilder pathTracerBuilder;
+			pathTracerBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/path-tracer_vert.glsl");
+			pathTracerBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/path-tracer_frag.glsl");
+			m_pathTracerShader = pathTracerBuilder.build();
 
         } catch (ShaderLoadingException e) {
             std::cerr << e.what() << std::endl;
@@ -78,12 +80,28 @@ public:
 
     void update()
     {
+		Config menuConfig;
+
         int dummyInteger = 0; // Initialized to 0
-        
+       
         // 1time GL state setup
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glEnable(GL_DEPTH_TEST);
         glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
+
+		GLuint triangle_ssbo;
+		GLuint bvh_ssbo;
+
+		// Create SSBO for triangle data (for path tracer)
+		glGenBuffers(1, &triangle_ssbo);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, triangle_ssbo);
+		//TODO
+		glBufferData(GL_SHADER_STORAGE_BUFFER, 16, nullptr, GL_STATIC_DRAW);
+
+		// Create SSBO for BVH data
+		glGenBuffers(1, &bvh_ssbo);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, bvh_ssbo);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, 16, nullptr, GL_STATIC_DRAW);
 
         while (!m_window.shouldClose()) {
             // This is your game loop
@@ -104,6 +122,8 @@ public:
                 ImGui::SliderFloat("Follow height", &m_followHeight, 0.0f, 4.0f, "%.2f");
                 ImGui::SliderFloat("Look-ahead", &m_lookAhead, 0.0f, 2.5f, "%.2f");
             }
+
+			ImGui::Checkbox("Enable Path Tracer", &menuConfig.pathTracerEnabled);
             ImGui::End();
 
 
@@ -167,25 +187,34 @@ public:
             // https://paroj.github.io/gltut/Illumination/Tut09%20Normal%20Transformation.html
             const glm::mat3 normalModelMatrix = glm::inverseTranspose(glm::mat3(m_modelMatrix));
 
-            for (GPUMesh& mesh : m_meshes) {
-                m_defaultShader.bind();
-                glUniformMatrix4fv(m_defaultShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(mvpMatrix));
-                //Uncomment this line when you use the modelMatrix (or fragmentPosition)
-                //glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(m_modelMatrix));
-                glUniformMatrix3fv(m_defaultShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE, glm::value_ptr(normalModelMatrix));
-                if (mesh.hasTextureCoords()) {
-                    m_texture.bind(GL_TEXTURE0);
-                    glUniform1i(m_defaultShader.getUniformLocation("colorMap"), 0);
-                    glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_TRUE);
-                    glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), GL_FALSE);
-                } else {
-                    glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_FALSE);
-                    glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
-                }
-                mesh.draw(m_defaultShader);
-            }
+			GPUMesh quad = GPUMesh::createFullscreenQuad();
 
-            // Processes input and swaps the window buffer
+			if (menuConfig.pathTracerEnabled) {
+				m_pathTracerShader.bind();
+
+				glUniform1i(m_pathTracerShader.getUniformLocation("accum_sample"), 1);
+				quad.draw(m_pathTracerShader);
+			} else {
+				for (GPUMesh& mesh : m_meshes) {
+					m_defaultShader.bind();
+					glUniformMatrix4fv(m_defaultShader.getUniformLocation("mvpMatrix"), 1, GL_FALSE, glm::value_ptr(mvpMatrix));
+					//Uncomment this line when you use the modelMatrix (or fragmentPosition)
+					//glUniformMatrix4fv(m_defaultShader.getUniformLocation("modelMatrix"), 1, GL_FALSE, glm::value_ptr(m_modelMatrix));
+					glUniformMatrix3fv(m_defaultShader.getUniformLocation("normalModelMatrix"), 1, GL_FALSE, glm::value_ptr(normalModelMatrix));
+					if (mesh.hasTextureCoords()) {
+						m_texture.bind(GL_TEXTURE0);
+						glUniform1i(m_defaultShader.getUniformLocation("colorMap"), 0);
+						glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_TRUE);
+						glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), GL_FALSE);
+					} else {
+						glUniform1i(m_defaultShader.getUniformLocation("hasTexCoords"), GL_FALSE);
+						glUniform1i(m_defaultShader.getUniformLocation("useMaterial"), m_useMaterial);
+					}
+					mesh.draw(m_defaultShader);
+				}
+			}
+
+            // Processes input and swapswriting to fragColor the window buffer
             m_window.swapBuffers();
         }
     }
@@ -235,7 +264,7 @@ private:
     // Shader for default rendering and for depth rendering
     Shader m_defaultShader;
     Shader m_shadowShader;
-	Shader m_pathTraceShader;
+	Shader m_pathTracerShader;
 
     std::vector<GPUMesh> m_meshes;
     Texture m_texture;
