@@ -16,6 +16,10 @@ add_executable(Master_TechDemo
 	"src/ui/camera.cpp"
 )
 
+target_include_directories(Master_TechDemo PRIVATE
+	"$(CMAKE_CURRENT_LIST_DIR)/src"
+)
+
 target_compile_definitions(Master_TechDemo PRIVATE RESOURCE_ROOT="${CMAKE_CURRENT_LIST_DIR}/")
 target_compile_features(Master_TechDemo PRIVATE cxx_std_20)
 target_link_libraries(Master_TechDemo PRIVATE CGFramework)
