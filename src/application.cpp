@@ -102,7 +102,7 @@ public:
             // --- Camera input like in the template
             ImGuiIO& io = ImGui::GetIO();
             if (!io.WantCaptureMouse) {
-                m_camera.updateInput();
+                m_camera.updateInput(m_viewMode);
             }
             else {
                 // potential mouse movement:
@@ -133,8 +133,9 @@ public:
                 break;
             }
 
-            case 2: { // top (need different movement controls)
-                const glm::vec3 topPos = camPos + glm::vec3(0.0f, m_followDistance * 2.0f, 0.0f);
+            case 2: { // top
+                glm::vec3 topPos = camPos;
+                topPos.y = std::max(topPos.y, m_followDistance * 2.0f);
                 m_viewMatrix = glm::lookAt(topPos, camPos, glm::vec3(0, 0, -1));
                 break;
             }

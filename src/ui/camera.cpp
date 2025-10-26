@@ -50,38 +50,47 @@ void Camera::rotateY(float angle)
     m_up = glm::normalize(glm::cross(m_forward, horAxis));
 }
 
-void Camera::updateInput()
+void Camera::updateInput(int viewMode)
 {
     constexpr float moveSpeed = 0.03f;
     constexpr float lookSpeed = 0.0015f;
 
-    if (m_userInteraction) {
-        glm::vec3 localMoveDelta { 0 };
-        const glm::vec3 right = glm::normalize(glm::cross(m_forward, m_up));
-        if (m_pWindow->isKeyPressed(GLFW_KEY_A))
-            m_position -= moveSpeed * right;
-        if (m_pWindow->isKeyPressed(GLFW_KEY_D))
-            m_position += moveSpeed * right;
-        if (m_pWindow->isKeyPressed(GLFW_KEY_W))
-            m_position += moveSpeed * m_forward;
-        if (m_pWindow->isKeyPressed(GLFW_KEY_S))
-            m_position -= moveSpeed * m_forward;
-        if (m_pWindow->isKeyPressed(GLFW_KEY_SPACE))
-            m_position += moveSpeed * m_up;
-        if (m_pWindow->isKeyPressed(GLFW_KEY_C))
-            m_position -= moveSpeed * m_up;
+    if (!m_userInteraction)
+        return;
 
-        const glm::dvec2 cursorPos = m_pWindow->getCursorPos();
-        const glm::vec2 delta = lookSpeed * glm::vec2(m_prevCursorPos - cursorPos);
-        m_prevCursorPos = cursorPos;
+    const glm::vec3 right = glm::normalize(glm::cross(m_forward, m_up));
+    glm::vec3 moveDelta(0.0f);
 
-        if (m_pWindow->isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT)) {
-            if (delta.x != 0.0f)
-                rotateY(delta.x);
-            if (delta.y != 0.0f)
-                rotateX(delta.y);
-        }
-    } else {
+    if (viewMode == 2) {
+        // top-down movement
+        if (m_pWindow->isKeyPressed(GLFW_KEY_W)) moveDelta += glm::vec3(0.0f, 0.0f, -1.0f);
+        if (m_pWindow->isKeyPressed(GLFW_KEY_S)) moveDelta += glm::vec3(0.0f, 0.0f, 1.0f);
+        if (m_pWindow->isKeyPressed(GLFW_KEY_A)) moveDelta += glm::vec3(-1.0f, 0.0f, 0.0f);
+        if (m_pWindow->isKeyPressed(GLFW_KEY_D)) moveDelta += glm::vec3(1.0f, 0.0f, 0.0f);
+        if (m_pWindow->isKeyPressed(GLFW_KEY_SPACE)) moveDelta.y += 1.0f;
+        if (m_pWindow->isKeyPressed(GLFW_KEY_C))     moveDelta.y -= 1.0f;
+        if (glm::length(moveDelta) > 0.0f)
+            m_position += glm::normalize(moveDelta) * moveSpeed;
+        // No mouse look in top-down
         m_prevCursorPos = m_pWindow->getCursorPos();
+        return;
+    }
+
+    // normal fps movement
+    if (m_pWindow->isKeyPressed(GLFW_KEY_W)) m_position += moveSpeed * m_forward;
+    if (m_pWindow->isKeyPressed(GLFW_KEY_S)) m_position -= moveSpeed * m_forward;
+    if (m_pWindow->isKeyPressed(GLFW_KEY_A)) m_position -= moveSpeed * right;
+    if (m_pWindow->isKeyPressed(GLFW_KEY_D)) m_position += moveSpeed * right;
+    if (m_pWindow->isKeyPressed(GLFW_KEY_SPACE)) m_position += moveSpeed * m_up;
+    if (m_pWindow->isKeyPressed(GLFW_KEY_C))     m_position -= moveSpeed * m_up;
+
+    // mouse lock
+    const glm::dvec2 cursorPos = m_pWindow->getCursorPos();
+    const glm::vec2 delta = lookSpeed * glm::vec2(m_prevCursorPos - cursorPos);
+    m_prevCursorPos = cursorPos;
+
+    if (m_pWindow->isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT)) {
+        if (delta.x != 0.0f) rotateY(delta.x);
+        if (delta.y != 0.0f) rotateX(delta.y);
     }
 }
