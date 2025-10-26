@@ -21,6 +21,7 @@ DISABLE_WARNINGS_POP()
 #include <functional>
 #include <iostream>
 #include <vector>
+#include "ui/menu.h"
 
 
 class Application {
@@ -86,7 +87,17 @@ public:
             ImGui::InputInt("This is an integer input", &dummyInteger); // Use ImGui::DragInt or ImGui::DragFloat for larger range of numbers.
             ImGui::Text("Value is: %i", dummyInteger); // Use C printf formatting rules (%i is a signed integer)
             ImGui::Checkbox("Use material if no texture", &m_useMaterial);
+            ImGui::Text("Camera / View");
+            const char* modes[] = { "First-person", "Third-person", "Top-down" };
+            ImGui::Combo("View mode", &m_viewMode, modes, IM_ARRAYSIZE(modes));
+            ImGui::Checkbox("Show avatar", &m_showAvatar);
+            if (m_viewMode == 1) {
+                ImGui::SliderFloat("Follow distance", &m_followDistance, 0.5f, 8.0f, "%.2f");
+                ImGui::SliderFloat("Follow height", &m_followHeight, 0.0f, 4.0f, "%.2f");
+                ImGui::SliderFloat("Look-ahead", &m_lookAhead, 0.0f, 2.5f, "%.2f");
+            }
             ImGui::End();
+
 
             // --- Camera input like in the template
             ImGuiIO& io = ImGui::GetIO();
@@ -105,7 +116,34 @@ public:
 
             // build matrices (proj * view)
             m_projectionMatrix = glm::perspective(glm::radians(80.0f), aspect, 0.1f, 30.0f);
-            m_viewMatrix = m_camera.viewMatrix();
+
+            const glm::vec3 camPos = m_camera.cameraPos();
+            const glm::vec3 fwd = m_camera.forward();
+            const glm::vec3 up = m_camera.up();
+
+            switch (m_viewMode) {
+            case 0: // first
+                m_viewMatrix = m_camera.viewMatrix();
+                break;
+
+            case 1: { // third
+                const glm::vec3 chasePos = camPos - fwd * m_followDistance + up * m_followHeight;
+                const glm::vec3 lookAt = camPos + fwd * m_lookAhead;
+                m_viewMatrix = glm::lookAt(chasePos, lookAt, up);
+                break;
+            }
+
+            case 2: { // top (need different movement controls)
+                const glm::vec3 topPos = camPos + glm::vec3(0.0f, m_followDistance * 2.0f, 0.0f);
+                m_viewMatrix = glm::lookAt(topPos, camPos, glm::vec3(0, 0, -1));
+                break;
+            }
+
+            default:
+                m_viewMatrix = m_camera.viewMatrix();
+                break;
+            }
+
             const glm::mat4 viewProjection = m_projectionMatrix * m_viewMatrix;
 
             // Clear the screen
@@ -197,6 +235,13 @@ private:
     glm::mat4 m_projectionMatrix = glm::mat4(1.0f);
     glm::mat4 m_viewMatrix = glm::mat4(1.0f);
     glm::mat4 m_modelMatrix { 1.0f };
+
+	// view camera controls
+    int   m_viewMode = 0;
+    bool  m_showAvatar = true;
+    float m_followDistance = 3.0f;
+    float m_followHeight = 1.2f;
+    float m_lookAhead = 0.8f;
 };
 
 int main()

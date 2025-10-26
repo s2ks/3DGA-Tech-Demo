@@ -20,6 +20,10 @@ public:
     glm::vec3 cameraPos() const;
     glm::mat4 viewMatrix() const;
 
+    glm::vec3 forward() const { return glm::normalize(m_forward); }
+    glm::vec3 up() const { return glm::normalize(m_up); }
+    glm::vec3 right() const { return glm::normalize(glm::cross(m_forward, m_up)); }
+
 private:
     void rotateX(float angle);
     void rotateY(float angle);
