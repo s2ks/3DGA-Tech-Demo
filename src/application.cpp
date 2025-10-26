@@ -59,6 +59,14 @@ public:
             //     Visual Studio: PROJECT => Generate Cache for ComputerGraphics
             //     VS Code: ctrl + shift + p => CMake: Configure => enter
             // ....
+			
+			/* TODO: we could turn this into a compute shader. Is apparently better
+			 * parallellizable */
+			ShaderBuilder pathTraceBuilder;
+			pathTraceBuilder.addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/path-trace_vert.glsl");
+			pathTraceBuilder.addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/path-trace_frag.glsl");
+			m_pathTraceShader = pathTraceBuilder.build();
+
         } catch (ShaderLoadingException e) {
             std::cerr << e.what() << std::endl;
         }
@@ -158,6 +166,7 @@ private:
     // Shader for default rendering and for depth rendering
     Shader m_defaultShader;
     Shader m_shadowShader;
+	Shader m_pathTraceShader;
 
     std::vector<GPUMesh> m_meshes;
     Texture m_texture;
