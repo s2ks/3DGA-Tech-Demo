@@ -33,12 +33,19 @@ in vec2 fragTexCoord;
 
 in vec2 uv;
 
+struct vertex {
+	vec3 position;
+	vec3 normal;
+	vec2 uv;
+};
+
 struct material {
 	float specular;
 	float diffuse;
 	float refract;
-	vec3 color;
-	vec3 emission;
+	vec3 kd;
+	vec3 ks;
+	vec3 ke;
 };
 
 struct camera {
@@ -69,10 +76,10 @@ struct scene {
 };
 
 struct triangle {
-	vec3 v0;
-	vec3 v1;
-	vec3 v2;
-	vec3 normal; // precomputed normal (optional)
+	vertex v0;
+	vertex v1;
+	vertex v2;
+
 	material mat;
 };
 
@@ -175,6 +182,8 @@ intersection intersect(triangle t, vec3 E, vec3 D, float mint, float maxt) {
 
 	return s;
 }
+
+/* TODO rewrite */
 bool intersectAABB(vec3 bmin, vec3 bmax, vec3 E, vec3 D, float mint, float maxt) {
 	float tmin = mint;
 	float tmax = maxt;
@@ -194,6 +203,7 @@ bool intersectAABB(vec3 bmin, vec3 bmax, vec3 E, vec3 D, float mint, float maxt)
 	return true;
 }
 
+/* TODO rewrite */
 intersection intersect(vec3 E, vec3 D, float mint, float maxt) {
 	intersection s = NO_INTERSECTION;
 
@@ -263,7 +273,7 @@ vec3 specular_step(inout intersection s, inout vec3 origin, inout vec3 spec) {
 	}
 
 	float focus = dot(s.normal, diffusedir);
-	spec *= s.mat.color * focus;
+	spec *= s.mat.kd * focus;
 
 	bool specular_bounce = rand(seed) <= 1 - s.mat.diffuse;
 
@@ -358,10 +368,6 @@ vec3 render() {
 	vec3 col = vec3(0, 0, 0);
 	vec2 pixel = gl_FragCoord.xy;
 
-	if(sc.debug) {
-		pixel.x -= sc.screen.x / 2;
-	}
-
 	float r1 = rand(seed) - 0.5;
 	float r2 = rand(seed) - 0.5;
 
@@ -380,7 +386,7 @@ vec3 render() {
 
 	pixel += jitter;
 
-	float a = pixel.x / (sc.screen.x / (sc.debug ? 2 : 1));
+	float a = pixel.x / sc.screen.x;
 	float b = pixel.y / sc.screen.y;
 
 	vec3 p = p0 + a*u + b*v;
@@ -400,7 +406,7 @@ vec3 render() {
 			break;
 		}
 
-		col += s.mat.emission * mask;
+		col += s.mat.ke * mask;
 
 		if(s.mat.refract > 0) {
 			col += refraction_step(s, E, reflect_mult, 2) * mask;

@@ -13,6 +13,7 @@ add_executable(Master_TechDemo
     "src/application.cpp"
     "src/texture.cpp"
 	"src/mesh.cpp"
+	"src/scene.cpp"
 	"src/ui/camera.cpp"
 )
 

@@ -10,12 +10,46 @@ DISABLE_WARNINGS_POP()
 #include <vector>
 #include <framework/opengl_includes.h>
 
-struct Triangle {
-	Vertex v0;
-	Vertex v1;
-	Vertex v2;
+struct TriVertex {
+	alignas(16) glm::vec3 position;
+	alignas(16) glm::vec3 normal;
+	alignas(16) glm::vec2 uv;
 
-	Material mat;
+	constexpr TriVertex operator=(const Vertex &other) {
+		this->position = other.position;
+		this->normal = other.normal;
+		this->uv = other.texCoord;
+		return *this;
+	}
+};
+
+struct MeshMat {
+	float specular;
+	float diffuse;
+	float refract;
+	alignas(16) glm::vec3 kd; // Diffuse color
+	//alignas(16) glm::vec3 ks{ 0.0f };
+	alignas(16) glm::vec3 ke { 0.0f };
+
+	GLuint kdTexture{ 0 };
+
+	constexpr MeshMat operator=(const Material &other) {
+		this->kd = other.kd;
+		//this->ks = other.ks;
+		this->specular = other.shininess;
+		this->diffuse = 1.0f - other.shininess;
+		this->refract = other.transparency;
+		
+		return *this;
+	}
+};
+
+struct Triangle {
+	TriVertex v0;
+	TriVertex v1;
+	TriVertex v2;
+
+	MeshMat mat;
 };
 
 struct BVHNode {
@@ -38,6 +72,15 @@ class Scene {
 		Scene();
 		~Scene();
 
-		void addMesh(std::filesystem::path filePath, bool normalize);
-		void buildBVH(int start, int end);
-}
+		std::vector<int> addMesh(std::filesystem::path filePath, bool normalize);
+		void buildBVH(int maxTris);
+
+	private:
+		GLuint triSSBO;
+		GLuint bvhSSBO;
+
+		size_t buildBVH(int start, int end, int maxTris);
+
+		void updateTriSSBO();
+		void updateBVHSSBO();
+};
