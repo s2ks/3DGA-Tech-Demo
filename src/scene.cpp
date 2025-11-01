@@ -5,11 +5,80 @@
 #include "mesh.h"
 
 Scene::Scene() {
-	glGenBuffers(1, &this->triSSBO);
-	glGenBuffers(1, &this->bvhSSBO);
+	glGenBuffers(1, &this->tri_ubo);
+	glGenBuffers(1, &this->bvh_ubo);
+
+	//this->quadMesh = GPUMesh::createFullscreenQuad();
+
+	// Define a fullscreen quad
+	this->quadMesh.vertices = {
+		// positions        // normals       // texCoords
+		{{-1.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}},
+		{{ 1.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}},
+		{{ 1.0f,  1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+		{{-1.0f,  1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
+	};
+	this->quadMesh.triangles = {
+		{0, 1, 2},
+		{2, 3, 0}
+	};
+	this->quadMesh.material = Material(); // Default material
+
+    // Create VAO and bind it so subsequent creations of VBO and IBO are bound to this VAO
+    glGenVertexArrays(1, &this->vao);
+    glBindVertexArray(this->vao);
+
+    // Create vertex buffer object (VBO)
+    glGenBuffers(1, &this->vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, this->vbo);
+    glBufferData(
+		GL_ARRAY_BUFFER,
+		static_cast<GLsizeiptr>(this->quadMesh.vertices.size() *
+			sizeof(decltype(this->quadMesh.vertices)::value_type)),
+		this->quadMesh.vertices.data(),
+		GL_STATIC_DRAW);
+
+    // Create index buffer object (IBO)
+    glGenBuffers(1, &this->ibo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->ibo);
+    glBufferData(
+		GL_ELEMENT_ARRAY_BUFFER,
+		static_cast<GLsizeiptr>(this->quadMesh.triangles.size() *
+			sizeof(decltype(this->quadMesh.triangles)::value_type)),
+		this->quadMesh.triangles.data(),
+		GL_STATIC_DRAW);
+
+    // Tell OpenGL that we will be using vertex attributes 0, 1 and 2.
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+    glEnableVertexAttribArray(2);
+    // We tell OpenGL what each vertex looks like and how they are mapped to the shader (location = ...).
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, position));
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, normal));
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, texCoord));
+    // Reuse all attributes for each instance
+    glVertexAttribDivisor(0, 0);
+    glVertexAttribDivisor(1, 0);
+    glVertexAttribDivisor(2, 0);
+
+    // Each triangle has 3 vertices.
+    this->quadNumIndices = static_cast<GLsizei>(3 * this->quadMesh.triangles.size());
 }
 
-std::vector<int> Scene::addMesh(std::filesystem::path filePath, bool normalize) {
+Scene::~Scene() {
+	glDeleteBuffers(1, &this->tri_ubo);
+	glDeleteBuffers(1, &this->bvh_ubo);
+
+	glDeleteBuffers(1, &this->vbo);
+	glDeleteBuffers(1, &this->ibo);
+	glDeleteVertexArrays(1, &this->vao);
+}
+
+std::vector<int> Scene::addMesh(
+		std::filesystem::path filePath,
+		const glm::mat4 &transform,
+		bool normalize) {
+
     if (!std::filesystem::exists(filePath)) {
         throw MeshLoadingException(fmt::format("File {} does not exist", filePath.string().c_str()));
 	}
@@ -31,7 +100,7 @@ std::vector<int> Scene::addMesh(std::filesystem::path filePath, bool normalize) 
 		}
 	}
 
-	this->updateTriSSBO();
+	this->updateTriUBO();
 
 	return meshIndices;
 }
@@ -79,35 +148,47 @@ size_t Scene::buildBVH(int start, int end, int maxTris = 4) {
 	return node_idx;
 }
 
-void Scene::buildBVH(int maxTris = 4) {
+void Scene::buildBVH(int maxTris) {
 	this->bvh.clear();
 	size_t root = buildBVH(0, (int) this->triangles.size(), maxTris);
 
-	this->updateBVHSSBO();
+	this->updateBVHUBO();
 
 	assert(root == 0);
 }
 
-void Scene::updateTriSSBO() {
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->triSSBO);
+void Scene::updateTriUBO() {
+	glBindBuffer(GL_UNIFORM_BUFFER, this->tri_ubo);
 	glBufferData(
-		GL_SHADER_STORAGE_BUFFER,
+		GL_UNIFORM_BUFFER,
 		(GLsizeiptr) (this->triangles.size() * sizeof(Triangle)),
 		this->triangles.data(),
 		GL_STATIC_DRAW
 	);
 
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
 
-void Scene::updateBVHSSBO() {
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->bvhSSBO);
+void Scene::updateBVHUBO() {
+	glBindBuffer(GL_UNIFORM_BUFFER, this->bvh_ubo);
 	glBufferData(
-		GL_SHADER_STORAGE_BUFFER,
+		GL_UNIFORM_BUFFER,
 		(GLsizeiptr) (this->bvh.size() * sizeof(BVHNode)),
 		this->bvh.data(),
 		GL_STATIC_DRAW
 	);
 
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+	glBindBuffer(GL_UNIFORM_BUFFER, 0);
+}
+
+void Scene::draw(const Shader &shader) {
+
+    //drawingShader.bindUniformBlock("Material", 0, m_uboMaterial);
+	shader.bindUniformBlock("Triangles", 1, this->tri_ubo);
+	shader.bindUniformBlock("BVH", 2, this->bvh_ubo);
+    
+
+    // Draw the quad mesh's triangles
+    glBindVertexArray(this->vao);
+    glDrawElements(GL_TRIANGLES, this->quadNumIndices, GL_UNSIGNED_INT, nullptr);
 }

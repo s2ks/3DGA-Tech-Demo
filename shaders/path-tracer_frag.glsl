@@ -1,18 +1,18 @@
 #version 430
 
-#define NO_INTERSECTION intersection(0, material(0, 0, 0, vec3(0), vec3(0)), vec3(0), vec3(0), false)
+#define NO_INTERSECTION intersection(0, material(0, 0, 0, vec3(0), vec3(0), vec3(0)), vec3(0), vec3(0), false)
 #define MAX_BOUNCE 128
 #define EPSILON 0.01
 #define PI 3.14159265358979323846
 #define TWOPI 6.28318530717958647692
 
-layout(std140) uniform Material // Must match the GPUMaterial defined in src/mesh.h
-{
-    vec3 kd;
-	vec3 ks;
-	float shininess;
-	float transparency;
-};
+//layout(std140) uniform Material // Must match the GPUMaterial defined in src/mesh.h
+//{
+    //vec3 kd;
+	//vec3 ks;
+	//float shininess;
+	//float transparency;
+//};
 
 uniform sampler2D colorMap;
 uniform bool hasTexCoords;
@@ -46,6 +46,8 @@ struct material {
 	vec3 kd;
 	vec3 ks;
 	vec3 ke;
+
+	sampler2D kd_tex;
 };
 
 struct camera {
@@ -94,12 +96,12 @@ struct bvh_node {
 
 uint seed;
 
-layout (std430) buffer TrianglesBuffer {
-	triangle tris[];
+layout (std140) uniform Triangles {
+	triangle tris[0xffff/208];
 };
 
-layout (std430) buffer BVHBuffer {
-	bvh_node bvh_nodes[];
+layout (std140) uniform BVH {
+	bvh_node bvh_nodes[0xffff/208/4];
 };
 
 layout (std140) uniform ubscene {
@@ -126,58 +128,36 @@ vec3 uniform_hemisphere(float u1, float u2) {
 
 	return vec3(x, y, z);
 }
-
+//https://github.com/Jojendersie/gpugi/blob/5d18526c864bbf09baca02bfab6bcec97b7e1210/gpugi/shader/intersectiontests.glsl#L63
 intersection intersect(triangle t, vec3 E, vec3 D, float mint, float maxt) {
-	const float EPS = EPSILON;
 	intersection s = NO_INTERSECTION;
 
-	vec3 v0 = t.v0;
-	vec3 v1 = t.v1;
-	vec3 v2 = t.v2;
+	vec3 p0 = t.v0.position;
+	vec3 p1 = t.v1.position;
+	vec3 p2 = t.v2.position;
 
-	vec3 edge1 = v1 - v0;
-	vec3 edge2 = v2 - v0;
+	vec3 e0 = p1 - p0;
+	vec3 e1 = p0 - p2;
 
-	vec3 h = cross(D, edge2);
-	float a = dot(edge1, h);
+	vec3 tri_norm = cross(e1, e0);
 
-	if (abs(a) < EPS) {
-		return s; // ray parallel to triangle
-	}
+	vec3 e2 = (1.0 / dot(tri_norm, D)) * (p0 - E);
+	vec3 i = cross(D, e2);
 
-	float f = 1.0 / a;
-	vec3 svec = E - v0;
-	float u = f * dot(svec, h);
-	if (u < 0.0 || u > 1.0) {
-		return s;
-	}
+	vec3 bary;
+	bary.y = dot(i, e1);
+	bary.z = dot(i, e0);
+	bary.x = 1.0 - bary.y - bary.z;
 
-	vec3 q = cross(svec, edge1);
-	float v = f * dot(D, q);
-	if (v < 0.0 || u + v > 1.0) {
-		return s;
-	}
+	float dist = dot(tri_norm, e2);
 
-	float tparam = f * dot(edge2, q);
-	if (tparam > mint && tparam < maxt) {
-		vec3 point = E + tparam * D;
-
-		s.distance = tparam;
-		s.mat = t.mat;
-		// Compute geometric normal (triangle may provide cached normal)
-		vec3 n = t.normal;
-		if(length(n) < EPS) {
-			n = normalize(cross(edge1, edge2));
-		} else {
-			n = normalize(n);
-		}
-		// Ensure normal faces against the incoming ray
-		if (dot(n, D) > 0.0) {
-			n = -n;
-		}
-		s.normal = n;
-		s.point = point;
+	if(dist >= mint && dist <= maxt && all(greaterThanEqual(bary, vec3(0.0)))) {
+		s.distance = dist;
 		s.hits = true;
+		s.mat = t.mat;
+		s.normal = normalize(tri_norm); //TODO interpolate normal from bary coords
+		//s.normal = normalize(bary.x * t.v0.normal + bary.y * t.v1.normal + bary.z * t.v2.normal);
+		s.point = E + s.distance * D;
 	}
 
 	return s;

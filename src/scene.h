@@ -1,6 +1,7 @@
 #pragma once
 #include <framework/mesh.h>
 #include <framework/shader.h>
+#include <glm/common.hpp>
 DISABLE_WARNINGS_PUSH()
 #include <glm/vec3.hpp>
 DISABLE_WARNINGS_POP()
@@ -9,6 +10,16 @@ DISABLE_WARNINGS_POP()
 #include <filesystem>
 #include <vector>
 #include <framework/opengl_includes.h>
+
+struct GPUCam {
+	alignas(16) glm::vec3 pos;
+
+	alignas(16) glm::vec3 p0;
+	alignas(16) glm::vec3 p1;
+	alignas(16) glm::vec3 p2;
+
+	bool is_moving;
+}
 
 struct TriVertex {
 	alignas(16) glm::vec3 position;
@@ -28,8 +39,8 @@ struct MeshMat {
 	float diffuse;
 	float refract;
 	alignas(16) glm::vec3 kd; // Diffuse color
-	//alignas(16) glm::vec3 ks{ 0.0f };
-	alignas(16) glm::vec3 ke { 0.0f };
+	alignas(16) glm::vec3 ks { 0.0f }; // Specular color
+	alignas(16) glm::vec3 ke { 0.0f }; // Emissive color
 
 	GLuint kdTexture{ 0 };
 
@@ -72,15 +83,30 @@ class Scene {
 		Scene();
 		~Scene();
 
-		std::vector<int> addMesh(std::filesystem::path filePath, bool normalize);
-		void buildBVH(int maxTris);
+		std::vector<int> addMesh(
+				std::filesystem::path filePath,
+				const glm::mat4 &transform = glm::mat4(1.0f),
+				bool normalize = false);
+
+		//void addLight(const glm::vec3 &position, const glm::vec3 &color, float size);
+		//void setCamera(const glm::vec3 &position, const glm::vec3 &lookAt, const glm::vec3 &up);
+		void draw(const Shader &shader);
+
+		void buildBVH(int maxTris = 4);
 
 	private:
-		GLuint triSSBO;
-		GLuint bvhSSBO;
+		GLuint tri_ubo;
+		GLuint bvh_ubo;
+
+		GLuint vao;
+		GLuint vbo;
+		GLuint ibo;
+
+		Mesh quadMesh;
+		GLsizei quadNumIndices;
 
 		size_t buildBVH(int start, int end, int maxTris);
 
-		void updateTriSSBO();
-		void updateBVHSSBO();
+		void updateTriUBO();
+		void updateBVHUBO();
 };

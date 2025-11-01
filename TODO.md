@@ -1,5 +1,6 @@
 # TODO
 
-- [ ] Construct scene from meshes
-- [ ] Construct BVH
-- [ ] Pass list of triangles to shader
+- [x] Construct scene from meshes
+- [x] Construct BVH
+- [x] Pass list of triangles to shader
+- [ ] Pass scene and camera to shader

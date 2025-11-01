@@ -24,6 +24,7 @@ DISABLE_WARNINGS_POP()
 #include "ui/menu.h"
 
 #include "utils/config.h"
+#include "scene.h"
 
 
 class Application {
@@ -48,6 +49,9 @@ public:
         });
 
         m_meshes = GPUMesh::loadMeshGPU(RESOURCE_ROOT "resources/dragon.obj");
+		m_meshes.push_back(GPUMesh::createFullscreenQuad());
+
+		m_scene.addMesh(RESOURCE_ROOT "resources/dragon.obj");
 
         try {
             ShaderBuilder defaultBuilder;
@@ -88,20 +92,6 @@ public:
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glEnable(GL_DEPTH_TEST);
         glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
-
-		GLuint triangle_ssbo;
-		GLuint bvh_ssbo;
-
-		// Create SSBO for triangle data (for path tracer)
-		glGenBuffers(1, &triangle_ssbo);
-		glBindBuffer(GL_SHADER_STORAGE_BUFFER, triangle_ssbo);
-		//TODO
-		glBufferData(GL_SHADER_STORAGE_BUFFER, 16, nullptr, GL_STATIC_DRAW);
-
-		// Create SSBO for BVH data
-		glGenBuffers(1, &bvh_ssbo);
-		glBindBuffer(GL_SHADER_STORAGE_BUFFER, bvh_ssbo);
-		glBufferData(GL_SHADER_STORAGE_BUFFER, 16, nullptr, GL_STATIC_DRAW);
 
         while (!m_window.shouldClose()) {
             // This is your game loop
@@ -193,7 +183,7 @@ public:
 				m_pathTracerShader.bind();
 
 				glUniform1i(m_pathTracerShader.getUniformLocation("accum_sample"), 1);
-				quad.draw(m_pathTracerShader);
+				m_scene.draw(m_pathTracerShader);
 			} else {
 				for (GPUMesh& mesh : m_meshes) {
 					m_defaultShader.bind();
@@ -267,6 +257,7 @@ private:
 	Shader m_pathTracerShader;
 
     std::vector<GPUMesh> m_meshes;
+	Scene m_scene;
     Texture m_texture;
     bool m_useMaterial { true };
 
